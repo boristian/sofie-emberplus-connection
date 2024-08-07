@@ -46,7 +46,7 @@ export interface RequestPromiseArguments<T> {
 export enum ExpectResponse {
 	None = 'none',
 	Any = 'any',
-	HasChildren = 'has-children',
+	CanHaveChildren = 'can-have-children',
 }
 
 export interface Request {
@@ -209,7 +209,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				cb,
 			})
 
-		return this._sendCommand<RootElement>(node, command, ExpectResponse.HasChildren)
+		const expectResponse =
+			node.contents && node.contents.type === ElementType.Node ? ExpectResponse.CanHaveChildren : ExpectResponse.Any
+
+		return this._sendCommand<RootElement>(node, command, expectResponse)
 	}
 	async subscribe(
 		node: RootElement | Array<RootElement>,
@@ -505,7 +508,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			)
 			for (const req of reqs) {
 				// Don't complete the response, if the call was expecting the children to be loaded
-				if (req.nodeResponse === ExpectResponse.HasChildren && !change.node.children) continue
+				if (req.nodeResponse === ExpectResponse.CanHaveChildren && !change.node.children) continue
 
 				if (req.cb) req.cb(change.node)
 				if (req.resolve) {
@@ -628,6 +631,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		} else if (update.children) {
 			changes.push({ path: getPath(tree), node: tree })
 			tree.children = update.children
+		}
+
+		// handle empty Nodes
+		if (update.contents.type === ElementType.Node && !update.contents.identifier) {
+			tree.children = {}
 		}
 
 		return changes
